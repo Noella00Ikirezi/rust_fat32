@@ -1,0 +1,11 @@
+# Configuration pour le projet FAT32
+#
+# Pour la SOUMISSION (no_std), décommenter les lignes suivantes:
+# [build]
+# target = "x86_64-unknown-none"
+#
+# [unstable]
+# build-std = ["core", "alloc"]
+# build-std-features = ["compiler-builtins-mem"]
+#
+# Pour les TESTS, laisser commenté et utiliser: cargo test
