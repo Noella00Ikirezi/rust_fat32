@@ -2,8 +2,6 @@
 
 ## PROJET 1: FAT32 Reimplementation (Cours Rust 4A)
 
-**A faire SEUL**
-
 ---
 
 ## Fonctionnalités requises
@@ -77,53 +75,6 @@ cargo build --target x86_64-unknown-none
 
 ---
 
-## Configuration no_std pour soumission
-
-Pour la soumission finale, décommenter les lignes suivantes :
-
-**src/lib.rs:**
-```rust
-#![no_std]
-#![feature(alloc_error_handler)]
-```
-
-**src/allocator.rs:**
-```rust
-#[global_allocator]
-static ALLOCATOR: BumpAllocator = BumpAllocator;
-```
-
-**.cargo/config.toml:**
-```toml
-[build]
-target = "x86_64-unknown-none"
-
-[unstable]
-build-std = ["core", "alloc"]
-build-std-features = ["compiler-builtins-mem"]
-```
-
-**Cargo.toml:**
-```toml
-[profile.dev]
-panic = "abort"
-
-[profile.release]
-panic = "abort"
-```
-
----
-
-## Créer le git bundle pour soumission
-
-```bash
-git bundle create fat32-exam.bundle --all
-git bundle verify fat32-exam.bundle
-```
-
-Soumettre `fat32-exam.bundle` sur myges.
-
----
 
 ## Ressources
 
