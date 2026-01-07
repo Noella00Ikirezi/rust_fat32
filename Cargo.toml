@@ -2,7 +2,7 @@
 name = "fat32-exam"
 version = "0.1.0"
 edition = "2021"
-authors = ["Niki Rezi"]
+authors = ["Noella IKIREZI"]
 
 [lib]
 crate-type = ["rlib"]
