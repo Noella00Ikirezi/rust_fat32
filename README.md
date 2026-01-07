@@ -8,12 +8,12 @@
 
 | Commande | Description | Status |
 |----------|-------------|--------|
-| `ls` | Lister les fichiers selon un chemin donné | Done |
-| `cat/more` | Lire les fichiers (chemin absolu ou relatif) | Done |
-| `cd` | Naviguer dans les répertoires | Done |
-| `pwd` | Afficher le répertoire courant | Done |
-| Créer/écrire | Créer et écrire des fichiers (second temps) | TODO |
-| Interface CLI | Interface en ligne de commande | Done |
+| `ls` | Lister les fichiers selon un chemin donné | OK |
+| `cat/more` | Lire les fichiers (chemin absolu ou relatif) | OK |
+| `cd` | Naviguer dans les répertoires | OK |
+| `pwd` | Afficher le répertoire courant | OK |
+| Créer/écrire | Créer et écrire des fichiers (second temps) | En cours |
+| Interface CLI | Interface en ligne de commande | OK |
 
 ---
 
