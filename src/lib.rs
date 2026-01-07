@@ -31,7 +31,7 @@
 //! ```
 //!
 //! # Author
-//! Niki Rezi - ESGI 4A
+//! Noella IKIREZI - ESGI 4A
 //!
 //! # References
 //! - Microsoft FAT32 File System Specification
