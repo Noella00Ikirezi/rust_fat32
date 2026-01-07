@@ -83,7 +83,7 @@ pub const VERSION: &str = "0.1.0";
 pub fn print_info<O: Output>(out: &mut O) {
     out.write_line("FAT32 Filesystem Implementation");
     out.write_line(&alloc::format!("Version: {}", VERSION));
-    out.write_line("Author: Niki Rezi - ESGI 4A");
+    out.write_line("Author: Noella IKIREZI - ESGI 4A");
     out.write_line("");
     out.write_line("Features:");
     out.write_line("  - Boot sector parsing");

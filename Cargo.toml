@@ -7,6 +7,10 @@ authors = ["Noella IKIREZI"]
 [lib]
 crate-type = ["rlib"]
 
+[[bin]]
+name = "fat32-shell"
+path = "src/main.rs"
+
 [dependencies]
 # No external dependencies - only alloc crate allowed
 
