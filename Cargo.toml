@@ -1,0 +1,27 @@
+[package]
+name = "fat32-exam"
+version = "0.1.0"
+edition = "2021"
+authors = ["Niki Rezi"]
+
+[lib]
+crate-type = ["rlib"]
+
+[dependencies]
+# No external dependencies - only alloc crate allowed
+
+[dev-dependencies]
+# For testing with std
+
+[features]
+default = []
+# Pour la soumission no_std, activer cette feature:
+# no_std = []
+
+# Ne pas utiliser panic = "abort" pour permettre les tests
+# Pour la soumission, décommenter:
+# [profile.dev]
+# panic = "abort"
+#
+# [profile.release]
+# panic = "abort"
