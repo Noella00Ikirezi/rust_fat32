@@ -1,78 +1,43 @@
-//! FAT32 Directory Entry handling
-//!
-//! Directory entries are 32-byte structures containing file metadata.
-//! Supports both short (8.3) and long filename entries.
+//! Gestion des entrées de répertoire FAT32 (32 octets par entrée)
 
 extern crate alloc;
 use alloc::string::String;
 use alloc::vec::Vec;
 
-// Directory entry attribute flags
-/// Read-only file
+// Flags d'attributs des entrées
 pub const ATTR_READ_ONLY: u8 = 0x01;
-/// Hidden file
 pub const ATTR_HIDDEN: u8 = 0x02;
-/// System file
 pub const ATTR_SYSTEM: u8 = 0x04;
-/// Volume label (root directory only)
 pub const ATTR_VOLUME_ID: u8 = 0x08;
-/// Directory
 pub const ATTR_DIRECTORY: u8 = 0x10;
-/// Archive flag
 pub const ATTR_ARCHIVE: u8 = 0x20;
-/// Long filename entry (combination of other flags)
 pub const ATTR_LONG_NAME: u8 = 0x0F;
 
-/// FAT32 Directory Entry (32 bytes)
+/// Entrée de répertoire FAT32 (32 octets)
 #[derive(Clone, Debug)]
 pub struct DirEntry {
-    /// Short filename (8 chars, space-padded)
     pub name: [u8; 8],
-    /// Extension (3 chars, space-padded)
     pub ext: [u8; 3],
-    /// File attributes
     pub attr: u8,
-    /// High 16 bits of cluster number
     pub cluster_high: u16,
-    /// Low 16 bits of cluster number
     pub cluster_low: u16,
-    /// File size in bytes
     pub size: u32,
-    /// Creation time (raw)
     pub create_time: u16,
-    /// Creation date (raw)
     pub create_date: u16,
-    /// Last access date (raw)
     pub access_date: u16,
-    /// Last modification time (raw)
     pub modify_time: u16,
-    /// Last modification date (raw)
     pub modify_date: u16,
 }
 
 impl DirEntry {
-    /// Parse directory entry from 32 bytes
-    ///
-    /// # Arguments
-    /// * `data` - At least 32 bytes of directory entry data
-    ///
-    /// # Returns
-    /// * `Some(DirEntry)` if valid entry
-    /// * `None` if entry is deleted (0xE5) or end marker (0x00)
+    /// Parse une entrée de répertoire depuis 32 octets
     pub fn from_bytes(data: &[u8]) -> Option<Self> {
         if data.len() < 32 {
             return None;
         }
 
         let first_byte = data[0];
-
-        // 0x00 = end of directory entries
-        if first_byte == 0x00 {
-            return None;
-        }
-
-        // 0xE5 = deleted entry
-        if first_byte == 0xE5 {
+        if first_byte == 0x00 || first_byte == 0xE5 {
             return None;
         }
 
@@ -96,63 +61,60 @@ impl DirEntry {
         })
     }
 
-    /// Get full 32-bit cluster number
+    /// Retourne le numéro de cluster complet (32-bit)
     #[inline]
     pub fn cluster(&self) -> u32 {
         ((self.cluster_high as u32) << 16) | (self.cluster_low as u32)
     }
 
-    /// Check if entry is a directory
+    /// Vérifie si c'est un répertoire
     #[inline]
     pub fn is_directory(&self) -> bool {
         self.attr & ATTR_DIRECTORY != 0
     }
 
-    /// Check if entry is hidden
+    /// Vérifie si c'est caché
     #[inline]
     pub fn is_hidden(&self) -> bool {
         self.attr & ATTR_HIDDEN != 0
     }
 
-    /// Check if entry is the volume label
+    /// Vérifie si c'est le label du volume
     #[inline]
     pub fn is_volume_label(&self) -> bool {
         self.attr & ATTR_VOLUME_ID != 0
     }
 
-    /// Check if entry is a long filename entry
+    /// Vérifie si c'est une entrée LFN
     #[inline]
     pub fn is_long_name(&self) -> bool {
         self.attr == ATTR_LONG_NAME
     }
 
-    /// Check if entry is read-only
+    /// Vérifie si c'est en lecture seule
     #[inline]
     pub fn is_read_only(&self) -> bool {
         self.attr & ATTR_READ_ONLY != 0
     }
 
-    /// Check if entry is a system file
+    /// Vérifie si c'est un fichier système
     #[inline]
     pub fn is_system(&self) -> bool {
         self.attr & ATTR_SYSTEM != 0
     }
 
-    /// Check if this is the "." entry
+    /// Vérifie si c'est l'entrée "."
     pub fn is_dot(&self) -> bool {
         self.name[0] == b'.' && self.name[1] == b' '
     }
 
-    /// Check if this is the ".." entry
+    /// Vérifie si c'est l'entrée ".."
     pub fn is_dotdot(&self) -> bool {
         self.name[0] == b'.' && self.name[1] == b'.' && self.name[2] == b' '
     }
 
-    /// Get display name in standard format (NAME.EXT)
-    ///
-    /// Removes trailing spaces and combines name with extension.
+    /// Retourne le nom d'affichage (NAME.EXT)
     pub fn display_name(&self) -> String {
-        // Handle special entries
         if self.is_dot() {
             return String::from(".");
         }
@@ -160,13 +122,11 @@ impl DirEntry {
             return String::from("..");
         }
 
-        // Extract name part (remove trailing spaces)
         let name_part: String = self.name.iter()
             .take_while(|&&b| b != 0x20 && b != 0x00)
             .map(|&b| b as char)
             .collect();
 
-        // Extract extension part (remove trailing spaces)
         let ext_part: String = self.ext.iter()
             .take_while(|&&b| b != 0x20 && b != 0x00)
             .map(|&b| b as char)
@@ -179,7 +139,7 @@ impl DirEntry {
         }
     }
 
-    /// Get short name as stored (8.3 format with spaces)
+    /// Retourne le nom court brut (format 8.3)
     pub fn short_name(&self) -> String {
         let mut result = String::new();
         for &b in &self.name {
@@ -193,33 +153,20 @@ impl DirEntry {
     }
 }
 
-/// Long Filename Entry (LFN)
-///
-/// FAT32 supports long filenames using special directory entries
-/// that precede the standard 8.3 entry.
+/// Entrée de nom long (LFN)
 #[derive(Clone, Debug)]
 pub struct LfnEntry {
-    /// Sequence number (1-20, 0x40 flag for last entry)
     pub sequence: u8,
-    /// Characters 1-5 of this segment (UCS-2)
     pub name1: [u16; 5],
-    /// Characters 6-11 of this segment (UCS-2)
     pub name2: [u16; 6],
-    /// Characters 12-13 of this segment (UCS-2)
     pub name3: [u16; 2],
-    /// Checksum of short filename
     pub checksum: u8,
 }
 
 impl LfnEntry {
-    /// Parse LFN entry from 32 bytes
+    /// Parse une entrée LFN depuis 32 octets
     pub fn from_bytes(data: &[u8]) -> Option<Self> {
-        if data.len() < 32 {
-            return None;
-        }
-
-        // Verify this is an LFN entry
-        if data[11] != ATTR_LONG_NAME {
+        if data.len() < 32 || data[11] != ATTR_LONG_NAME {
             return None;
         }
 
@@ -227,7 +174,6 @@ impl LfnEntry {
         let mut name2 = [0u16; 6];
         let mut name3 = [0u16; 2];
 
-        // Parse UCS-2 characters
         for i in 0..5 {
             let offset = 1 + i * 2;
             name1[i] = u16::from_le_bytes([data[offset], data[offset + 1]]);
@@ -252,17 +198,17 @@ impl LfnEntry {
         })
     }
 
-    /// Check if this is the last LFN entry (has 0x40 flag)
+    /// Vérifie si c'est la dernière entrée LFN
     pub fn is_last(&self) -> bool {
         self.sequence & 0x40 != 0
     }
 
-    /// Get sequence number (1-20)
+    /// Retourne le numéro de séquence (1-20)
     pub fn order(&self) -> u8 {
         self.sequence & 0x1F
     }
 
-    /// Extract characters from this LFN entry
+    /// Extrait les caractères de cette entrée LFN
     pub fn get_chars(&self) -> Vec<char> {
         let mut chars = Vec::new();
 
@@ -297,30 +243,16 @@ impl LfnEntry {
     }
 }
 
-/// Parse all directory entries from raw directory data
-///
-/// Handles both short (8.3) and long filename entries.
-///
-/// # Arguments
-/// * `data` - Raw bytes of directory cluster(s)
-///
-/// # Returns
-/// Vector of valid directory entries (excluding LFN entries)
+/// Parse toutes les entrées d'un répertoire
 pub fn parse_directory(data: &[u8]) -> Vec<DirEntry> {
     let mut entries = Vec::new();
 
     for chunk in data.chunks(32) {
-        if chunk.len() < 32 {
-            break;
-        }
-
-        // 0x00 marks end of directory
-        if chunk[0] == 0x00 {
+        if chunk.len() < 32 || chunk[0] == 0x00 {
             break;
         }
 
         if let Some(entry) = DirEntry::from_bytes(chunk) {
-            // Skip LFN entries and volume labels
             if !entry.is_long_name() && !entry.is_volume_label() {
                 entries.push(entry);
             }
@@ -330,29 +262,16 @@ pub fn parse_directory(data: &[u8]) -> Vec<DirEntry> {
     entries
 }
 
-/// Parse directory with long filename support
-///
-/// Returns entries with their full long filenames if available.
-///
-/// # Arguments
-/// * `data` - Raw bytes of directory cluster(s)
-///
-/// # Returns
-/// Vector of (DirEntry, Option<String>) where String is the long filename
+/// Parse le répertoire avec support des noms longs
 pub fn parse_directory_with_lfn(data: &[u8]) -> Vec<(DirEntry, Option<String>)> {
     let mut entries = Vec::new();
     let mut lfn_parts: Vec<(u8, Vec<char>)> = Vec::new();
 
     for chunk in data.chunks(32) {
-        if chunk.len() < 32 {
+        if chunk.len() < 32 || chunk[0] == 0x00 {
             break;
         }
 
-        if chunk[0] == 0x00 {
-            break;
-        }
-
-        // Check if this is an LFN entry
         if chunk[11] == ATTR_LONG_NAME && chunk[0] != 0xE5 {
             if let Some(lfn) = LfnEntry::from_bytes(chunk) {
                 lfn_parts.push((lfn.order(), lfn.get_chars()));
@@ -366,9 +285,7 @@ pub fn parse_directory_with_lfn(data: &[u8]) -> Vec<(DirEntry, Option<String>)> 
                 continue;
             }
 
-            // Reconstruct long filename if we have LFN entries
             let long_name = if !lfn_parts.is_empty() {
-                // Sort by sequence number and concatenate
                 lfn_parts.sort_by_key(|(order, _)| *order);
                 let name: String = lfn_parts.iter()
                     .flat_map(|(_, chars)| chars.iter())
@@ -421,13 +338,12 @@ mod tests {
         let mut data = [0u8; 32];
         data[0..8].copy_from_slice(b"FILE    ");
         data[11] = ATTR_ARCHIVE;
-        data[20] = 0x01; // cluster_high low byte
-        data[21] = 0x00; // cluster_high high byte
-        data[26] = 0x00; // cluster_low low byte
-        data[27] = 0x02; // cluster_low high byte
+        data[20] = 0x01;
+        data[21] = 0x00;
+        data[26] = 0x00;
+        data[27] = 0x02;
 
         let entry = DirEntry::from_bytes(&data).unwrap();
-        // cluster = (0x0001 << 16) | 0x0200 = 0x00010200
         assert_eq!(entry.cluster(), 0x00010200);
     }
 
@@ -449,13 +365,13 @@ mod tests {
     #[test]
     fn test_deleted_entry() {
         let mut data = [0u8; 32];
-        data[0] = 0xE5; // Deleted marker
+        data[0] = 0xE5;
         assert!(DirEntry::from_bytes(&data).is_none());
     }
 
     #[test]
     fn test_end_marker() {
-        let data = [0u8; 32]; // First byte is 0x00
+        let data = [0u8; 32];
         assert!(DirEntry::from_bytes(&data).is_none());
     }
 }

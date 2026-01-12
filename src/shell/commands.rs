@@ -1,6 +1,4 @@
-//! Shell Commands Implementation
-//!
-//! Implements ls, cd, cat, more, pwd, and help commands.
+//! Implémentation des commandes shell: ls, cd, cat, more, pwd, help
 
 extern crate alloc;
 use alloc::string::String;
@@ -9,16 +7,14 @@ use alloc::format;
 
 use crate::fat32::Fat32;
 
-/// Shell state tracking current directory
+/// État du shell avec le répertoire courant
 pub struct ShellState {
-    /// Current directory cluster
     pub current_cluster: u32,
-    /// Path components from root
     pub current_path: Vec<String>,
 }
 
 impl ShellState {
-    /// Create new shell state at root directory
+    /// Crée un nouvel état au répertoire racine
     pub fn new(root_cluster: u32) -> Self {
         ShellState {
             current_cluster: root_cluster,
@@ -26,7 +22,7 @@ impl ShellState {
         }
     }
 
-    /// Get current working directory as string
+    /// Retourne le chemin courant
     pub fn pwd(&self) -> String {
         if self.current_path.is_empty() {
             String::from("/")
@@ -35,32 +31,26 @@ impl ShellState {
         }
     }
 
-    /// Check if at root directory
+    /// Vérifie si on est à la racine
     pub fn is_root(&self) -> bool {
         self.current_path.is_empty()
     }
 }
 
-/// Output trait for writing to display
-///
-/// Implement this trait for your specific hardware/output device.
+/// Trait pour l'affichage
 pub trait Output {
-    /// Write string (no newline)
     fn write_str(&mut self, s: &str);
 
-    /// Write string with newline
     fn write_line(&mut self, s: &str) {
         self.write_str(s);
         self.write_str("\n");
     }
 
-    /// Write formatted string
     fn write_fmt(&mut self, s: &str) {
         self.write_str(s);
     }
 }
 
-/// Simple string buffer output (for testing)
 #[cfg(test)]
 pub struct StringOutput {
     pub buffer: String,
@@ -80,23 +70,15 @@ impl Output for StringOutput {
     }
 }
 
-/// Execute ls command - list directory contents
-///
-/// # Arguments
-/// * `fs` - FAT32 filesystem
-/// * `state` - Current shell state
-/// * `path` - Optional path to list (None = current directory)
-/// * `out` - Output device
+/// Commande ls - liste le contenu d'un répertoire
 pub fn cmd_ls<O: Output>(
     fs: &Fat32,
     state: &ShellState,
     path: Option<&str>,
     out: &mut O,
 ) {
-    // Determine which cluster to list
     let cluster = match path {
         Some(p) if !p.is_empty() => {
-            // Navigate to specified path
             match resolve_to_cluster(fs, state, p) {
                 Some((c, true)) => c,
                 Some((_, false)) => {
@@ -119,7 +101,6 @@ pub fn cmd_ls<O: Output>(
         return;
     }
 
-    // Calculate totals
     let mut total_files = 0u32;
     let mut total_dirs = 0u32;
     let mut total_size = 0u64;
@@ -129,7 +110,6 @@ pub fn cmd_ls<O: Output>(
             continue;
         }
 
-        // Get display name (prefer long name)
         let name = long_name.as_ref()
             .map(|s| s.as_str())
             .unwrap_or_else(|| "");
@@ -154,13 +134,7 @@ pub fn cmd_ls<O: Output>(
     out.write_line(&format!("  {} dir(s)", total_dirs));
 }
 
-/// Execute cd command - change directory
-///
-/// # Arguments
-/// * `fs` - FAT32 filesystem
-/// * `state` - Shell state to modify
-/// * `path` - Path to change to
-/// * `out` - Output device
+/// Commande cd - change de répertoire
 pub fn cmd_cd<O: Output>(
     fs: &Fat32,
     state: &mut ShellState,
@@ -168,31 +142,23 @@ pub fn cmd_cd<O: Output>(
     out: &mut O,
 ) {
     match path {
-        // Go to root
         "/" | "" => {
             state.current_path.clear();
             state.current_cluster = fs.root_cluster();
         }
 
-        // Go up one level
         ".." => {
             if state.current_path.pop().is_some() {
-                // Recalculate cluster by navigating from root
                 state.current_cluster = navigate_from_root(fs, &state.current_path);
             }
-            // If already at root, do nothing
         }
 
-        // Current directory (no-op)
         "." => {}
 
-        // Navigate to path
         name => {
             if let Some((cluster, is_dir)) = resolve_to_cluster(fs, state, name) {
                 if is_dir {
-                    // Update state based on absolute vs relative path
                     if name.starts_with('/') {
-                        // Absolute path - rebuild path from components
                         state.current_path.clear();
                         for component in name.split('/').filter(|s| !s.is_empty()) {
                             if component != ".." {
@@ -202,7 +168,6 @@ pub fn cmd_cd<O: Output>(
                             }
                         }
                     } else {
-                        // Relative path
                         for component in name.split('/').filter(|s| !s.is_empty()) {
                             if component == ".." {
                                 state.current_path.pop();
@@ -222,13 +187,7 @@ pub fn cmd_cd<O: Output>(
     }
 }
 
-/// Execute cat command - display file contents
-///
-/// # Arguments
-/// * `fs` - FAT32 filesystem
-/// * `state` - Current shell state
-/// * `filename` - File to display
-/// * `out` - Output device
+/// Commande cat - affiche le contenu d'un fichier
 pub fn cmd_cat<O: Output>(
     fs: &Fat32,
     state: &ShellState,
@@ -248,14 +207,12 @@ pub fn cmd_cat<O: Output>(
         Some(ref e) => {
             let data = fs.read_file(e);
 
-            // Try to display as text
             if let Ok(text) = core::str::from_utf8(&data) {
                 out.write_str(text);
                 if !text.is_empty() && !text.ends_with('\n') {
                     out.write_str("\n");
                 }
             } else {
-                // Binary file - show hex dump
                 hex_dump(&data, out, 256);
             }
         }
@@ -265,14 +222,7 @@ pub fn cmd_cat<O: Output>(
     }
 }
 
-/// Execute more command - display file with pagination
-///
-/// # Arguments
-/// * `fs` - FAT32 filesystem
-/// * `state` - Current shell state
-/// * `filename` - File to display
-/// * `out` - Output device
-/// * `lines_per_page` - Number of lines per page
+/// Commande more - affiche un fichier avec pagination
 pub fn cmd_more<O: Output>(
     fs: &Fat32,
     state: &ShellState,
@@ -302,7 +252,6 @@ pub fn cmd_more<O: Output>(
 
                     if line_count >= lines_per_page {
                         out.write_line("-- More (press any key to continue) --");
-                        // In actual implementation, wait for keypress here
                         line_count = 0;
                     }
                 }
@@ -316,12 +265,12 @@ pub fn cmd_more<O: Output>(
     }
 }
 
-/// Execute pwd command - print working directory
+/// Commande pwd - affiche le répertoire courant
 pub fn cmd_pwd<O: Output>(state: &ShellState, out: &mut O) {
     out.write_line(&state.pwd());
 }
 
-/// Execute help command - show available commands
+/// Commande help - affiche l'aide
 pub fn cmd_help<O: Output>(out: &mut O) {
     out.write_line("FAT32 Shell Commands:");
     out.write_line("");
@@ -340,9 +289,7 @@ pub fn cmd_help<O: Output>(out: &mut O) {
     out.write_line("  cat /path/to/file.txt - Read file by path");
 }
 
-// Helper functions
-
-/// Navigate from root using path components
+/// Navigate depuis la racine avec les composants du chemin
 fn navigate_from_root(fs: &Fat32, path: &[String]) -> u32 {
     let mut cluster = fs.root_cluster();
 
@@ -361,9 +308,7 @@ fn navigate_from_root(fs: &Fat32, path: &[String]) -> u32 {
     cluster
 }
 
-/// Resolve path to cluster number
-///
-/// Returns (cluster, is_directory) or None if not found
+/// Résout un chemin vers un numéro de cluster
 fn resolve_to_cluster(fs: &Fat32, state: &ShellState, path: &str) -> Option<(u32, bool)> {
     let (is_absolute, components) = super::parser::parse_path(path);
 
@@ -375,18 +320,13 @@ fn resolve_to_cluster(fs: &Fat32, state: &ShellState, path: &str) -> Option<(u32
 
     for (i, component) in components.iter().enumerate() {
         match *component {
-            ".." => {
-                // For simplicity, we'd need parent tracking
-                // This is a simplified version
-                continue;
-            }
+            ".." => continue,
             "." => continue,
             name => {
                 if let Some(entry) = fs.find_entry(cluster, name) {
                     if i == components.len() - 1 {
-                        // Last component
                         let new_cluster = if entry.cluster() == 0 {
-                            fs.root_cluster() // Handle root references
+                            fs.root_cluster()
                         } else {
                             entry.cluster()
                         };
@@ -397,7 +337,7 @@ fn resolve_to_cluster(fs: &Fat32, state: &ShellState, path: &str) -> Option<(u32
                             cluster = fs.root_cluster();
                         }
                     } else {
-                        return None; // Can't traverse through file
+                        return None;
                     }
                 } else {
                     return None;
@@ -406,19 +346,16 @@ fn resolve_to_cluster(fs: &Fat32, state: &ShellState, path: &str) -> Option<(u32
         }
     }
 
-    // If we get here with no components, return current cluster
     Some((cluster, true))
 }
 
-/// Display hex dump of binary data
+/// Affiche un dump hexadécimal
 fn hex_dump<O: Output>(data: &[u8], out: &mut O, max_bytes: usize) {
     let display_len = data.len().min(max_bytes);
 
     for (i, chunk) in data[..display_len].chunks(16).enumerate() {
-        // Address
         let mut line = format!("{:08X}:  ", i * 16);
 
-        // Hex bytes
         for (j, byte) in chunk.iter().enumerate() {
             line.push_str(&format!("{:02X} ", byte));
             if j == 7 {
@@ -426,7 +363,6 @@ fn hex_dump<O: Output>(data: &[u8], out: &mut O, max_bytes: usize) {
             }
         }
 
-        // Padding if needed
         for j in chunk.len()..16 {
             line.push_str("   ");
             if j == 7 {
@@ -436,7 +372,6 @@ fn hex_dump<O: Output>(data: &[u8], out: &mut O, max_bytes: usize) {
 
         line.push_str(" |");
 
-        // ASCII representation
         for byte in chunk {
             if *byte >= 0x20 && *byte <= 0x7E {
                 line.push(*byte as char);

@@ -1,46 +1,20 @@
-//! Command Parser for FAT32 Shell
-//!
-//! Parses user input into structured commands.
+//! Parser de commandes pour le shell FAT32
 
-/// Parsed shell command
+/// Commande parsée
 #[derive(Debug, PartialEq)]
 pub enum Command<'a> {
-    /// List directory contents
     Ls(Option<&'a str>),
-    /// Change directory
     Cd(&'a str),
-    /// Display file contents
     Cat(&'a str),
-    /// Display file with pagination
     More(&'a str),
-    /// Print working directory
     Pwd,
-    /// Show help
     Help,
-    /// Exit shell
     Exit,
-    /// Unknown command
     Unknown(&'a str),
-    /// Empty input
     Empty,
 }
 
-/// Parse command string into Command enum
-///
-/// # Arguments
-/// * `input` - Raw user input string
-///
-/// # Returns
-/// Parsed Command variant
-///
-/// # Examples
-/// ```
-/// use fat32_exam::shell::parser::parse_command;
-/// use fat32_exam::shell::parser::Command;
-///
-/// assert!(matches!(parse_command("ls"), Command::Ls(None)));
-/// assert!(matches!(parse_command("cd Documents"), Command::Cd("Documents")));
-/// ```
+/// Parse une chaîne de commande
 pub fn parse_command(input: &str) -> Command<'_> {
     let trimmed = input.trim();
 
@@ -48,23 +22,21 @@ pub fn parse_command(input: &str) -> Command<'_> {
         return Command::Empty;
     }
 
-    // Split into command and argument
     let mut parts = trimmed.splitn(2, ' ');
     let cmd = parts.next().unwrap_or("");
     let arg = parts.next().map(|s| s.trim());
 
-    // Match command (case-insensitive)
     match cmd.to_ascii_lowercase().as_str() {
         "ls" | "dir" | "list" => Command::Ls(arg),
 
         "cd" | "chdir" => match arg {
             Some(path) if !path.is_empty() => Command::Cd(path),
-            _ => Command::Cd("/"), // cd with no args goes to root
+            _ => Command::Cd("/"),
         },
 
         "cat" | "type" | "read" => match arg {
             Some(filename) if !filename.is_empty() => Command::Cat(filename),
-            _ => Command::Empty, // Need filename
+            _ => Command::Empty,
         },
 
         "more" | "less" | "page" => match arg {
@@ -82,13 +54,7 @@ pub fn parse_command(input: &str) -> Command<'_> {
     }
 }
 
-/// Parse path into components
-///
-/// # Arguments
-/// * `path` - Path string (e.g., "/Documents/file.txt")
-///
-/// # Returns
-/// Vector of path components
+/// Parse un chemin en composants
 pub fn parse_path(path: &str) -> (bool, alloc::vec::Vec<&str>) {
     extern crate alloc;
     use alloc::vec::Vec;
@@ -133,7 +99,6 @@ mod tests {
             panic!("Expected Cd");
         }
 
-        // cd with no args -> root
         if let Command::Cd(path) = parse_command("cd") {
             assert_eq!(path, "/");
         } else {
@@ -149,7 +114,6 @@ mod tests {
             panic!("Expected Cat");
         }
 
-        // cat without filename
         assert!(matches!(parse_command("cat"), Command::Empty));
     }
 

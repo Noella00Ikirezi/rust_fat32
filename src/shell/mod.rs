@@ -1,16 +1,4 @@
-//! Shell Module for FAT32 Filesystem
-//!
-//! Provides a command-line interface for navigating and reading
-//! FAT32 filesystems.
-//!
-//! # Commands
-//! - `ls` - List directory contents
-//! - `cd` - Change directory
-//! - `cat` - Display file contents
-//! - `more` - Display file with pagination
-//! - `pwd` - Print working directory
-//! - `help` - Show help
-//! - `exit` - Exit shell
+//! Module Shell - Interface en ligne de commande pour naviguer le filesystem FAT32
 
 pub mod parser;
 pub mod commands;
@@ -20,23 +8,7 @@ pub use commands::{ShellState, Output, cmd_ls, cmd_cd, cmd_cat, cmd_more, cmd_pw
 
 use crate::fat32::Fat32;
 
-/// Main shell loop
-///
-/// Runs an interactive shell for the given filesystem.
-/// This is a template - actual input handling depends on your platform.
-///
-/// # Arguments
-/// * `fs` - FAT32 filesystem to operate on
-/// * `out` - Output device
-/// * `get_input` - Function to get user input
-///
-/// # Example
-/// ```ignore
-/// run_shell(&fs, &mut output, || {
-///     // Read line from keyboard
-///     read_line()
-/// });
-/// ```
+/// Boucle principale du shell interactif
 pub fn run_shell<O, F>(fs: &Fat32, out: &mut O, mut get_input: F)
 where
     O: Output,
@@ -51,16 +23,13 @@ where
     out.write_line("");
 
     loop {
-        // Show prompt
         out.write_str(&format!("{}> ", state.pwd()));
 
-        // Get input
         let input = match get_input() {
             Some(s) => s,
-            None => break, // EOF or error
+            None => break,
         };
 
-        // Parse and execute command
         match parse_command(&input) {
             Command::Ls(path) => cmd_ls(fs, &state, path, out),
             Command::Cd(path) => cmd_cd(fs, &mut state, path, out),
@@ -83,18 +52,7 @@ where
     }
 }
 
-/// Execute a single command
-///
-/// For non-interactive use or scripting.
-///
-/// # Arguments
-/// * `fs` - FAT32 filesystem
-/// * `state` - Shell state (modified by cd)
-/// * `input` - Command string
-/// * `out` - Output device
-///
-/// # Returns
-/// `false` if exit command was given, `true` otherwise
+/// Exécute une seule commande (pour usage non-interactif)
 pub fn execute_command<O: Output>(
     fs: &Fat32,
     state: &mut ShellState,
